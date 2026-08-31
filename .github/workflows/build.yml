@@ -1,0 +1,143 @@
+name: Build gfxstream container ICD
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Mesa tag (e.g. mesa-26.1.5)'
+        required: true
+        default: 'mesa-26.1.5'
+      draft_release:
+        description: 'Draft a new release'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-icd:
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: debian:testing-slim
+      options: --privileged --user root
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/debian.sources
+          apt update
+          apt build-dep -y mesa
+          apt install -y git ccache ca-certificates curl
+
+      - name: Install rust (>=1.82, kumquat requirement) and bindgen-cli
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          . "$HOME/.cargo/env"
+          rustc --version
+          cargo install --locked bindgen-cli
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: /root/.ccache
+          key: ccache-mesa-gfxstream-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ccache-mesa-gfxstream-
+
+      - name: Configure ccache
+        run: |
+          export CCACHE_DIR=/root/.ccache
+          ccache --max-size=2G
+          ccache --zero-stats
+
+      - name: Clone upstream mesa tag
+        run: |
+          cd ~
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git clone -b ${{ github.event.inputs.tag }} --depth 1 \
+            https://gitlab.freedesktop.org/mesa/mesa.git mesa
+
+      - name: Set release name suffix
+        shell: bash
+        run: |
+          cd ~/mesa
+          version=$(grep -v '^[[:space:]]*$' VERSION | head -n1)
+          build_date=$(TZ=Asia/Shanghai date +%Y%m%d)
+          echo "MESA_RELEASE_NAME_SUFFIX=${version}-gfxstream-kumquat-${build_date}_container_arm64" >> "$GITHUB_ENV"
+
+      - name: Build Mesa gfxstream Vulkan ICD (kumquat enabled)
+        shell: bash
+        run: |
+          export CCACHE_DIR=/root/.ccache
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "Building Mesa (gfxstream vk + kumquat only)..."
+          cd ~/mesa
+          meson setup build/ \
+                  --prefix=/usr \
+                  -Dvulkan-drivers=gfxstream \
+                  -Dvirtgpu_kumquat=true \
+                  -Dgallium-drivers=[] \
+                  -Dgallium-rusticl=false \
+                  -Degl=disabled \
+                  -Dgbm=disabled \
+                  -Dglx=disabled \
+                  -Dplatforms=[] \
+                  -Dllvm=disabled \
+                  -Dxmlconfig=disabled \
+                  -Dbuildtype=release
+          ninja -C build/ src/gfxstream/guest/libvulkan_gfxstream.so
+
+      - name: Verify build products
+        run: |
+          SO=$(find ~/mesa/build -name 'libvulkan_gfxstream.so*' -type f | head -n1)
+          [ -n "$SO" ] || { echo "FATAL: libvulkan_gfxstream.so not found"; exit 1; }
+          ls -lh "$SO"
+          nm -D "$SO" | grep -q kumquatCreateVirtGpuDevice && echo "kumquat platform: OK" || echo "WARN: kumquat symbols not exported (checking dynamic)"
+          strings "$SO" | grep -q "kumquat-gpu-" && echo "kumquat socket path: OK" || echo "WARN: socket path string missing"
+
+      - name: Package ICD
+        shell: bash
+        run: |
+          echo "Packaging..."
+          cd ~/mesa
+          mkdir /tmp/icd-tmp
+          DESTDIR=/tmp/icd-tmp meson install -C build/
+          # keep only the gfxstream vulkan ICD bits
+          mkdir -p pkg/usr/lib pkg/share/vulkan/icd.d
+          find /tmp/icd-tmp -name 'libvulkan_gfxstream.so*' -exec cp -a {} pkg/usr/lib/ \;
+          find /tmp/icd-tmp -name 'gfxstream_vk_icd.json' -exec cp -a {} pkg/share/vulkan/icd.d/ \;
+          tar -zcvf gfxstream_icd_${MESA_RELEASE_NAME_SUFFIX}.tar.gz -C pkg .
+          sha256sum gfxstream_icd_${MESA_RELEASE_NAME_SUFFIX}.tar.gz > sha256sums.txt
+          cat sha256sums.txt
+
+      - name: Save ccache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: /root/.ccache
+          key: ccache-mesa-gfxstream-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gfxstream_icd_${{ env.MESA_RELEASE_NAME_SUFFIX }}
+          path: |
+            ~/mesa/gfxstream_icd_*.tar.gz
+            ~/mesa/sha256sums.txt
+          retention-days: 90
+
+      - name: Draft release
+        if: ${{ github.event.inputs.draft_release == 'true' }}
+        shell: bash
+        run: |
+          cd ~/mesa
+          gh release create "icd-${MESA_RELEASE_NAME_SUFFIX}" \
+            --draft --title "gfxstream ICD ${MESA_RELEASE_NAME_SUFFIX}" \
+            --notes "Mesa ${MESA_RELEASE_NAME_SUFFIX} gfxstream Vulkan ICD with kumquat transport (container glibc arm64). Requires kumquat server (rutabaga_gfx kumquat_virtio) at /tmp/kumquat-gpu-0 and VIRTGPU_KUMQUAT=1." \
+            gfxstream_icd_${MESA_RELEASE_NAME_SUFFIX}.tar.gz sha256sums.txt
+        env:
+          GH_TOKEN: ${{ github.token }}
