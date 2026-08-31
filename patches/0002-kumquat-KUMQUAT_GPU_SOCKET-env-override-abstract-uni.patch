@@ -1,4 +1,4 @@
-From 83f80702d9ee05425819bb4a392f0b2384f36539 Mon Sep 17 00:00:00 2001
+From 62fa076827aaf9ffb7a62caa14252e017325232e Mon Sep 17 00:00:00 2001
 From: lakitu <1219387824@qq.com>
 Date: Mon, 31 Aug 2026 20:23:56 +0800
 Subject: [PATCH] kumquat: KUMQUAT_GPU_SOCKET env override + abstract '@' unix
@@ -37,7 +37,7 @@ index 70d58d02531..fd08a9e9374 100644
          mDescriptor = descriptor;
      } else {
 diff --git a/src/virtio/magma-gpu-rs/lib/util/sys/linux/tube.rs b/src/virtio/magma-gpu-rs/lib/util/sys/linux/tube.rs
-index ebc73ba44b6..1e335fc78c3 100644
+index ebc73ba44b6..cf685857504 100644
 --- a/src/virtio/magma-gpu-rs/lib/util/sys/linux/tube.rs
 +++ b/src/virtio/magma-gpu-rs/lib/util/sys/linux/tube.rs
 @@ -7,6 +7,7 @@ use std::io::IoSlice;
@@ -57,7 +57,7 @@ index ebc73ba44b6..1e335fc78c3 100644
 + * client (Tube::new) and server (Listener::bind) side, so "@kumquat-gpu-0"
 + * works symmetrically. */
 +fn unix_addr_from_bytes(bytes: &[u8]) -> rustix::io::Result<SocketAddrUnix> {
-+    #[cfg(target_os = "linux")]
++    #[cfg(any(target_os = "linux", target_os = "android"))]
 +    {
 +        if let Some(name) = bytes.strip_prefix(b"@") {
 +            return SocketAddrUnix::new_abstract_name(name);
