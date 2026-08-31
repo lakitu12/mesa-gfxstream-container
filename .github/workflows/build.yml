@@ -31,6 +31,9 @@ jobs:
           apt build-dep -y mesa
           apt install -y git ccache ca-certificates curl
 
+      - name: Checkout this repo (patches/)
+        uses: actions/checkout@v4
+
       - name: Install rust (>=1.82, kumquat requirement) and bindgen-cli
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
@@ -64,7 +67,7 @@ jobs:
       - name: Apply patches
         run: |
           cd ~/mesa
-          for p in /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/patches/*.patch; do
+          for p in "$GITHUB_WORKSPACE"/patches/*.patch; do
             echo "Applying $p"
             git apply --check "$p" || { echo "PATCH FAILED: $p"; exit 1; }
             git apply "$p"
