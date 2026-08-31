@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Mesa tag (e.g. mesa-26.1.5)'
+        description: 'Mesa tag (e.g. mesa-26.2.1)'
         required: true
-        default: 'mesa-26.1.5'
+        default: 'mesa-26.2.1'
       draft_release:
         description: 'Draft a new release'
         required: true
@@ -112,6 +112,7 @@ jobs:
           ls -lh "$SO"
           nm -D "$SO" | grep -q kumquatCreateVirtGpuDevice && echo "kumquat platform: OK" || echo "WARN: kumquat symbols not exported (checking dynamic)"
           strings "$SO" | grep -q "kumquat-gpu-" && echo "kumquat socket path: OK" || echo "WARN: socket path string missing"
+          strings "$SO" | grep -q "KUMQUAT_GPU_SOCKET" && echo "KUMQUAT_GPU_SOCKET env: OK" || { echo "FATAL: KUMQUAT_GPU_SOCKET override missing"; exit 1; }
 
       - name: Package ICD
         shell: bash
