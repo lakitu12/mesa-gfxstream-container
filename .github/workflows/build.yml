@@ -98,7 +98,7 @@ jobs:
                   -Degl=disabled \
                   -Dgbm=disabled \
                   -Dglx=disabled \
-                  -Dplatforms=x11 \
+                  -Dplatforms=x11,wayland \
                   -Dllvm=disabled \
                   -Ddisplay-info=disabled \
                   -Dxmlconfig=disabled \
