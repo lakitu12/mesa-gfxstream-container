@@ -89,7 +89,7 @@ jobs:
                   -Dllvm=disabled \
                   -Dxmlconfig=disabled \
                   -Dbuildtype=release
-          ninja -C build/ src/gfxstream/guest/libvulkan_gfxstream.so
+          ninja -C build/
 
       - name: Verify build products
         run: |
