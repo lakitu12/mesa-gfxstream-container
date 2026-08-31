@@ -1,0 +1,14 @@
+diff --git a/src/gfxstream/guest/vulkan/gfxstream_vk_device.cpp b/src/gfxstream/guest/vulkan/gfxstream_vk_device.cpp
+index c979d699f62..51d63cce008 100644
+--- a/src/gfxstream/guest/vulkan/gfxstream_vk_device.cpp
++++ b/src/gfxstream/guest/vulkan/gfxstream_vk_device.cpp
+@@ -66,7 +66,9 @@ static const char* const kGuestEmulatedInstanceExtensions[] = {
+ #endif
+ #if defined(GFXSTREAM_VK_X11)
+     VK_KHR_XCB_SURFACE_EXTENSION_NAME,
++    VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+ #endif
++    VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME,
+     VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+ };
+ 

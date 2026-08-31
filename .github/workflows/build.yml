@@ -61,6 +61,16 @@ jobs:
           git clone -b ${{ github.event.inputs.tag }} --depth 1 \
             https://gitlab.freedesktop.org/mesa/mesa.git mesa
 
+      - name: Apply patches
+        run: |
+          cd ~/mesa
+          for p in /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/patches/*.patch; do
+            echo "Applying $p"
+            git apply --check "$p" || { echo "PATCH FAILED: $p"; exit 1; }
+            git apply "$p"
+          done
+          grep -c "VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME" src/gfxstream/guest/vulkan/gfxstream_vk_device.cpp
+
       - name: Set release name suffix
         shell: bash
         run: |
