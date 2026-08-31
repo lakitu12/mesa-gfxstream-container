@@ -87,6 +87,7 @@ jobs:
                   -Dglx=disabled \
                   -Dplatforms=[] \
                   -Dllvm=disabled \
+                  -Ddisplay-info=disabled \
                   -Dxmlconfig=disabled \
                   -Dbuildtype=release
           ninja -C build/
@@ -107,9 +108,8 @@ jobs:
           mkdir /tmp/icd-tmp
           DESTDIR=/tmp/icd-tmp meson install -C build/
           # keep only the gfxstream vulkan ICD bits
-          mkdir -p pkg/usr/lib pkg/share/vulkan/icd.d
-          find /tmp/icd-tmp -name 'libvulkan_gfxstream.so*' -exec cp -a {} pkg/usr/lib/ \;
-          find /tmp/icd-tmp -name 'gfxstream_vk_icd.json' -exec cp -a {} pkg/share/vulkan/icd.d/ \;
+          mkdir -p pkg
+          find /tmp/icd-tmp \( -name 'libvulkan_gfxstream.so*' -o -name 'gfxstream_vk_icd*.json' \) -exec cp -a --parents {} pkg/ \;
           tar -zcvf gfxstream_icd_${MESA_RELEASE_NAME_SUFFIX}.tar.gz -C pkg .
           sha256sum gfxstream_icd_${MESA_RELEASE_NAME_SUFFIX}.tar.gz > sha256sums.txt
           cat sha256sums.txt
