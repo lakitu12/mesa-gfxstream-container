@@ -41,7 +41,27 @@ VIRTGPU_KUMQUAT=1 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/gfxstream_vk_icd.json
 
 `.github/workflows/build.yml` — manual dispatch (`tag`, default `mesa-26.1.5`, `draft_release`).
 Based on lakitu12/mesa build.yml (ubuntu-24.04-arm native arm64, debian:testing-slim,
-apt build-dep, ccache). Mesa is cloned from upstream gitlab at build time; this repo
-carries only the workflow. ICD-only meson config (`-Dvulkan-drivers=gfxstream
--Dvirtgpu_kumquat=true`, everything else off) + rustup/bindgen-cli for the kumquat
-rust/bindgen requirements.
+apt build-dep, ccache). Mesa is cloned from upstream gitlab at build time;
+`patches/` are applied after clone. ICD-only meson config
+(`-Dvulkan-drivers=gfxstream -Dvirtgpu_kumquat=true -Dplatforms=x11,wayland`,
+everything else off) + rustup/bindgen-cli for the kumquat rust/bindgen requirements.
+
+## Patch
+
+`patches/0001-gfxstream-guest-add-xlib-and-headless-surface-exts.patch` — adds
+`VK_KHR_xlib_surface` + `VK_EXT_headless_surface` to the guest ICD instance-extension
+whitelist (`kGuestEmulatedInstanceExtensions[]` in
+`src/gfxstream/guest/vulkan/gfxstream_vk_device.cpp`). Upstream whitelist only carries
+xcb/wayland; MobileGL DirectVulkan needs xlib or headless. Not upstreamed — re-check on
+tag bumps (`git apply --check` in CI guards this).
+
+## Platform matrix / caveats
+
+- `x11,wayland` (current): the ICD links wayland WSI and needs `wl_fixes_interface`
+  (libwayland ≥ forky). On trixie containers the loader rejects it
+  (`undefined symbol: wl_fixes_interface`). Kept for anland.
+- `x11` only: works on trixie — that build validated the full MobileGL loopback
+  (`GL_RENDERER = Magma ... (Virtio-GPU GFXStream ...)`).
+- Swapchain export (`vkGetMemoryFdKHR`) requires an exportable host memory backend;
+  lavapipe loopback can't provide it (expected). On the Mali/Android host side
+  gfxstream auto-enables `VulkanAllocateHostVisibleAsUdmabuf` on 6.6 kernels.
